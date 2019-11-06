@@ -7,10 +7,10 @@ import RPi.GPIO as GPIO
 
 #GPIO setup
 GPIO.setmode(GPIO.BCM)
-#GPIO.setwarnings(False)
+GPIO.setwarnings(False)
 #GPIO.cleanup()
-TRIG = 4
-ECHO = 18
+TRIG = 23
+ECHO = 24
 GREEN = 17
 YELLOW = 27
 RED = 22
@@ -23,11 +23,13 @@ GPIO.setup(RED,GPIO.OUT)
 #
 #
 
-#parking distances
-dist_warn= 30
-dist_stop= 15
+#parking distances in cm
+# 172cm=68" 5.5 feet
+# 203cm=80" 6.5 feet
+dist_warn= 203
+dist_stop= 172
 #Maximum allowable centimeters to exceed the exact stop distance "dist_stop"
-dist_stop_tolerance=3
+dist_stop_tolerance=8
 innerlimit = dist_stop - dist_stop_tolerance
 outerlimit = dist_stop + dist_stop_tolerance
 
@@ -41,7 +43,7 @@ def lightsoff():
     turn_color(YELLOW, False)
     turn_color(RED, False)
 
-def turn_color(color, on)):
+def turn_color(color, on):
     GPIO.output(color, on)
 
 def slowblink(color):
@@ -51,16 +53,9 @@ def slowblink(color):
     turn_color(color,False)
     time.sleep(0.5)
 
-def fastblink(color):
+def flash(color):
     lightsoff()
-    turn_color(color,True)
-    time.sleep(0.2)
-    turn_color(color,False)
-    time.sleep(0.1)
-
-def hyperblink(color):
-    lightsoff()
-    for n in range(4):
+    for n in range(5):
         turn_color(color,True)
         time.sleep(0.1)
         turn_color(color,False)
@@ -92,36 +87,29 @@ def measure():
     while GPIO.input(ECHO)==1:
         stop = time.time()
     elapsed = stop-start
-    distance = (elapsed * 34300)/2
-    return distance
+    distance = elapsed * 17150
+    return round(distance,2)
 
-#def get_distance():
-#    GPIO.output(TRIG, True)
-#    time.sleep(0.00001)
-#    GPIO.output(TRIG, False)
-#    while GPIO.input(ECHO) == False:
-#        start = time.time()
-#    while GPIO.input(ECHO) == True:
-#        end = time.time()
-#    signal_time = end-start
-#    distance = signal_time / 0.000058
-#    return distance
 
 def calculate_average():
   # This function takes 3 measurements and returns the average.
-  distance = [0]*3
+  dist = []
   for n in range(3):
-      distance[n]=measure()
-      time.sleep(0.1)
-  average = sum(distance)/len(distance)
+      dist.append(measure())
+      time.sleep(0.07)
+  average = sum(dist)/len(dist)
   return average
 
 # Set trigger to False (Low)
 GPIO.output(TRIG, False)
 lightsoff()
 startup_test()
+# toggle the trig to start sensor
+GPIO.output(TRIG, True)
+time.sleep(0.00001)
+GPIO.output(TRIG, False)
 
-print "Starting ultrasonic distance measure"
+print("Starting ultrasonic distance measure")
 
 sleepcounter = 0
 try:
@@ -129,7 +117,7 @@ try:
     while sleepcounter < 12:
     #lightsoff()
         distance = calculate_average()
-        print "Distance : %.1f" % distance
+        print("Distance : ", distance)
         if distance > dist_warn:
             slowblink(GREEN)
             print("Keep comin")
@@ -143,15 +131,19 @@ try:
             print("Noice")
             sleepcounter += 1
         elif distance < dist_stop - dist_stop_tolerance:
-            hyperblink(RED)
+            flash(RED)
             sleepcounter = 0
             print("Too close")
         else:
             lightsoff()
-        time.sleep(0.5)
+        time.sleep(0.3)
     lightsoff()
+    turn_color(GREEN, True)
+    time.sleep(0.5)
+    lightsoff()
+    GPIO.cleanup()
     print("Good night - now what?")
-#  elseif distance <= distwarn or
+# now we sleep - driver is parked safely
 
 except KeyboardInterrupt:
     # User pressed CTRL-C
